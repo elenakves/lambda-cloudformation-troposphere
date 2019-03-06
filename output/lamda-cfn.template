@@ -1,0 +1,196 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "cfn objects used for api custom solution",
+    "Parameters": {
+        "HaskKeyElementName": {
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "ConstraintDescription": "must contain only alphanumberic characters",
+            "Default": "userId",
+            "Description": "HashType PrimaryKey Name",
+            "MaxLength": "2048",
+            "MinLength": "1",
+            "Type": "String"
+        },
+        "HaskKeyElementType": {
+            "AllowedPattern": "[S|N]",
+            "ConstraintDescription": "must be either S or N",
+            "Default": "S",
+            "Description": "HashType PrimaryKey Type",
+            "MaxLength": "1",
+            "MinLength": "1",
+            "Type": "String"
+        },
+        "ReadCapacityUnits": {
+            "ConstraintDescription": "should be between 1 and 5",
+            "Default": "1",
+            "Description": "Provisioned read throughput",
+            "MaxValue": "1",
+            "MinValue": "1",
+            "Type": "Number"
+        },
+        "WriteCapacityUnits": {
+            "ConstraintDescription": "should be between 1 and 5",
+            "Default": "1",
+            "Description": "Provisioned write throughput",
+            "MaxValue": "1",
+            "MinValue": "1",
+            "Type": "Number"
+        }
+    },
+    "Resources": {
+        "LambdaAppDynamoDB": {
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": {
+                            "Ref": "HaskKeyElementName"
+                        },
+                        "AttributeType": {
+                            "Ref": "HaskKeyElementType"
+                        }
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": {
+                            "Ref": "HaskKeyElementName"
+                        },
+                        "KeyType": "HASH"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": {
+                        "Ref": "ReadCapacityUnits"
+                    },
+                    "WriteCapacityUnits": {
+                        "Ref": "WriteCapacityUnits"
+                    }
+                }
+            },
+            "Type": "AWS::DynamoDB::Table"
+        },
+        "LambdaURLCheckFunction": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": "lambda-cloudformation-troposphere",
+                    "S3Key": "url_string_check.zip"
+                },
+                "Description": "Test function for troposphere example",
+                "Environment": {
+                    "Variables": {
+                        "EXPECTED": "AWS",
+                        "SITE": "https://aws.amazon.com/console/"
+                    }
+                },
+                "FunctionName": "url-check",
+                "Handler": "url_string_check.main",
+                "MemorySize": 128,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaURLCheckRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.6",
+                "Timeout": "10"
+            },
+            "Type": "AWS::Lambda::Function"
+        },
+        "LambdaURLCheckPermission": {
+            "DependsOn": "LambdaURLCheckFunction",
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": "url-check",
+                "Principal": "events.amazonaws.com"
+            },
+            "Type": "AWS::Lambda::Permission"
+        },
+        "LambdaURLCheckRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        },
+                        "PolicyName": "allow-lambda-execute"
+                    },
+                    {
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "dynamodb:PutItem",
+                                        "dynamodb:UpdateItem",
+                                        "dynamodb:DeleteItem",
+                                        "dynamodb:BatchGetItem",
+                                        "dynamodb:DescribeTable",
+                                        "dynamodb:GetItem",
+                                        "dynamodb:ListTables",
+                                        "dynamodb:Query",
+                                        "dynamodb:Scan",
+                                        "dynamodb:DescribeReservedCapacity",
+                                        "dynamodb:DescribeReservedCapacityOfferings",
+                                        "dynamodb:ListTagsOfResource",
+                                        "dynamodb:DescribeTimeToLive",
+                                        "dynamodb:DescribeLimits"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        },
+                        "PolicyName": "allow-dyanmoDB-action"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Role"
+        },
+        "UrlCheckSchedule": {
+            "Properties": {
+                "Description": "testing",
+                "Name": "url-check-schedule",
+                "ScheduleExpression": "cron(0/5 * * * ? *)",
+                "Targets": [
+                    {
+                        "Arn": {
+                            "Fn::GetAtt": [
+                                "LambdaURLCheckFunction",
+                                "Arn"
+                            ]
+                        },
+                        "Id": "LambdaURLCheckTarget"
+                    }
+                ]
+            },
+            "Type": "AWS::Events::Rule"
+        }
+    }
+}
