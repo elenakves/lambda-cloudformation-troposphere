@@ -43,6 +43,8 @@ This will output cfn template and create cfn stack.
 ## Tests
 
 example event to test Lambda function:
+
+
 {
   "id": "cdc73f9d-aea9-11e3-9d5a-835b769c0d9c",
   "detail-type": "Scheduled Event",
